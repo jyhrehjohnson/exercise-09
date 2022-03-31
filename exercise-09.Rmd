@@ -1,0 +1,224 @@
+---
+title: "exercise-09"
+author: "Jyhreh Johnson"
+date: "3/30/2022"
+output: html_document
+---
+1. Using the {tidyverse} read_csv() function, load the “Street_et_al_2017.csv” dataset from this URL as a “tibble” named d
+
+Do a quick exploratory data analysis where you generate the five-number summary (median, minimum and maximum and 1st and 3rd quartile values), plus mean and standard deviation, for each quantitative variable
+```{r}
+library(tidyverse)
+library(broom)
+library(patchwork)
+library(infer)
+library(lmodel2)
+library(skimr)
+f <- "https://raw.githubusercontent.com/difiore/ada-2022-datasets/main/Street_et_al_2017.csv"
+d <- read_csv(f, col_names = TRUE)
+head(d)
+skim(d)
+```
+2. From this dataset, plot brain size (ECV) as a function of social group size (Group_size), longevity (Longevity), juvenile period length (Weaning), and reproductive lifespan (Repro_lifespan)
+```{r}
+p1 <- ggplot(data = d, aes(x = ECV, y = Group_size)) + geom_point()
+p2 <- ggplot(data = d, aes(x = ECV, y = Longevity)) + geom_point()
+p3 <- ggplot(data = d, aes(x = ECV, y = Weaning)) + geom_point()
+p4 <- ggplot(data = d, aes(x = ECV, y = Repro_lifespan)) + geom_point()
+
+p1 + p2
+```
+3. From this dataset, plot brain size (ECV) as a function of social group size (Group_size), longevity (Longevity), juvenile period length (Weaning), and reproductive lifespan (Repro_lifespan) Derive by hand the ordinary least squares regression coefficients β code = $\beta$ and β code = $\beta$for ECV as a function of social group size. 
+```{r}
+d_mod <- d %>% filter(!is.na(ECV) & !is.na(Group_size))
+
+beta1 <- cor(d_mod$ECV, d_mod$Group_size) * sd(d_mod$ECV) / sd(d_mod$Group_size)
+beta1
+
+beta0 <- mean(d_mod$ECV) - beta1 * mean(d_mod$Group_size)
+beta0
+```
+4. Confirm that you get the same results using the lm() function
+```{r}
+model <- lm(data = d, ECV ~ Group_size)
+summary(model)
+
+residuals <- d_mod$ECV - (beta0 + beta1 * d_mod$Group_size)
+
+num <- sum(residuals^2)/ (length(residuals)-2)
+den <- sum(d_mod$Group_size - mean(d_mod$Group_size))^2
+```
+5. Repeat the analysis above for three different major radiations of primates – “catarrhines”, “platyrrhines”, and “strepsirhines”) separately. These are stored in the variable Taxonomic_group.
+Do your regression coefficients differ among groups? How might you determine this?
+```{r}
+#Catarrhines
+catarrhines <- d_mod %>% filter(Taxonomic_group == "Catarrhini")
+cata_b1 <- cor(catarrhines$ECV, catarrhines$Group_size) * (sd(catarrhines$ECV)/sd(catarrhines$Group_size))
+cata_b1
+
+cata_b0 <- mean(catarrhines$ECV) - cata_b1 * mean(catarrhines$Group_size)
+cata_b0
+
+#cata lm
+cata_m <- lm(formula = ECV ~ Group_size, data = catarrhines)
+summary(cata_m)
+```
+```{r}
+#Platyrrhines
+platyrrhines <- d_mod %>% filter(Taxonomic_group == "Platyrrhini")
+plat_b1 <- cor(platyrrhines$ECV, platyrrhines$Group_size) * (sd(platyrrhines$ECV)/sd(platyrrhines$Group_size))
+plat_b1
+
+plat_b0 <- mean(platyrrhines$ECV) - plat_b1 * mean(platyrrhines$Group_size)
+plat_b0
+
+#plat lm
+plat_m <- lm(formula = ECV ~ Group_size, data = platyrrhines)
+summary(plat_m)
+```
+```{r}
+#Strepsirhines
+strepsirhines <- d_mod %>% filter(Taxonomic_group == "Strepsirhini")
+strep_b1 <- cor(strepsirhines$ECV, strepsirhines$Group_size) * (sd(strepsirhines$ECV)/sd(strepsirhines$Group_size))
+strep_b1
+
+strep_b0 <- mean(strepsirhines$ECV) - cata_b1 * mean(strepsirhines$Group_size)
+strep_b0
+
+#strep lm
+strep_m <- lm(formula = ECV ~ Group_size, data = strepsirhines)
+summary(strep_m)
+```
+
+6. For your first regression of ECV on social group size, calculate the standard error for the slope coefficient, the 95% CI, and the p value associated with this coefficient by hand. Also extract this same information from the results of running the lm() function.
+```{r}
+#find the standard error
+SE_beta1 <- sqrt(num/den)
+SE_beta1
+
+SE_beta0 <- SE_beta1 * sqrt(sum(d_mod$Group_size)/length(d_mod$Group_size))
+SE_beta0
+
+#Code from class for t-values
+#t_beta1 <- beta1/SE_beta1
+#t_beta0 <- beta0/SE_beta0
+#1 - pt(t_beta1, 149)
+```
+```{r}
+model.summary <- tidy(model)
+model.summary
+
+#calculate the CI, I did it the long way but a cleaner/shorter way was provided in class: (CI <- confint(model, level = 1 - alpha))
+alpha <- 0.05
+lower <- model.summary$estimate -
+  qt(1 - alpha / 2, df = nrow(d_mod) - 2) * model.summary$std.error
+upper <- model.summary$estimate +
+  qt(1 - alpha / 2, df = nrow(d_mod) - 2) * model.summary$std.error
+CI <- c(lower, upper)
+CI
+```
+```{r}
+#calculate the p-value
+model.summary$calc.statistic <- (model.summary$estimate-0)/model.summary$std.error
+model.summary$calc.p.value <- 2 * pt(model.summary$calc.statistic,
+  df=nrow(d_mod)-2, lower.tail = FALSE)
+model.summary
+```
+7. Then, use a permutation approach with 1000 permutations to generate a null sampling distribution for the slope coefficient. What is it that you need to permute? What is the p value associated with your original slope coefficient?
+```{r}
+#define the alpha, CI boundaries, and critical values
+confidence_level <- 1 - alpha
+p_lower <- alpha / 2
+p_upper <- 1 - (alpha / 2)
+degrees_of_freedom <- nrow(d_mod) - 2
+critical_value <- qt(p_upper, df = degrees_of_freedom)
+```
+
+```{r}
+#calculate the original slope 
+original.slope <- lm(data = d_mod, ECV ~ Group_size) %>%
+  tidy(conf.int=TRUE, conf.level=confidence_level) %>%
+  mutate(
+    lower = estimate - std.error * critical_value,
+    upper = estimate + std.error * critical_value
+  ) %>%
+  filter(term=="Group_size")
+original.slope 
+```
+Try to use a loop
+```{r}
+#calculate the permuted slope
+library(mosaic)
+reps = 1000
+
+#method from Module 18
+perm.slope <- d_mod %>%
+  specify(ECV ~ Group_size) %>%
+  hypothesize(null = "independence") %>% #set null hypothesis
+  generate(reps, type = "permute") %>%
+  calculate(stat = "slope")
+head(perm.slope)
+
+#using do reps
+perm.slope <- do(reps) * sample_n(specify(d_mod, ECV ~ Group_size),                                size = nrow(d_mod), 
+                         replace = FALSE) %>%
+                         specify(ECV ~ Group_size) %>%
+                         hypothesize(null = "independence") %>% #set null hypothesis, 
+                         generate(type = "permute") %>%
+                         calculate(stat = "slope")
+head(perm.slope)
+
+#using a for loop
+for (i in 1:reps){
+  ps <- sample_n(d_mod, size = nrow(d), replace = TRUE)
+              specify(ECV ~ Group_size) %>%
+              hypothesize(null = "independence") %>% #set null hypothesis,
+              generate(type = "permute") %>%
+              calculate(stat = "slope")
+}
+head(perm.slope)
+
+perm.slope.summary <- perm.slope %>%
+  summarize(
+    estimate = mean(stat),
+    std.error = sd(stat),
+    lower = estimate - std.error * critical_value,
+    upper = estimate + std.error * critical_value,
+    perm.lower = quantile(stat, p_lower),
+    perm.upper = quantile(stat, p_upper)
+  )
+perm.slope.summary
+```
+```{r}
+p.value <- perm.slope %>% 
+  mutate(abs_stat=abs(stat)) %>%
+  summarize(
+    estimate = mean(abs_stat >= abs(pull(original.slope, estimate)))
+  )
+p.value
+```
+Bootstrapping
+
+Use bootstrapping to generate a 95% CI for your estimate of the slope coefficient using both the percentile method and the theory-based method (i.e., based on the standard deviation of the bootstrapped sampling distribution). What is the p value associated with your observed slope coefficient based on each of these methods?
+```{r}
+boot.slope <- d_mod %>%
+  specify(ECV ~ Group_size) %>%
+  generate(reps, type = "bootstrap") %>% 
+  calculate(stat = "slope") 
+  head(boot.slope)
+
+boot.slope.summary <- boot.slope %>%
+  summarize(
+    estimate = mean(stat),
+    std.error = sd(stat),
+    lower = estimate - std.error * critical_value,
+    upper = estimate + std.error * critical_value,
+    boot.lower = quantile(stat, p_lower),
+    boot.upper = quantile(stat, p_upper)
+  )
+
+boot.slope.summary
+
+hist(boot.slope$stat, main="Histogram of Bootstrapped\nSlope Values",
+  xlab = "Slope Coefficient")
+```
