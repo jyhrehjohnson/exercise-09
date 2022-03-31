@@ -1,1 +1,1 @@
-# practice_simple_linear_regression
+# exercise-09
