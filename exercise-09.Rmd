@@ -17,18 +17,21 @@ library(skimr)
 f <- "https://raw.githubusercontent.com/difiore/ada-2022-datasets/main/Street_et_al_2017.csv"
 d <- read_csv(f, col_names = TRUE)
 head(d)
+```
+2. Do a quick exploratory data analysis where you generate the five-number summary (median, minimum and maximum and 1st and 3rd quartile values), plus mean and standard deviation, for each quantitative variable
+```{r}
 skim(d)
 ```
-2. From this dataset, plot brain size (ECV) as a function of social group size (Group_size), longevity (Longevity), juvenile period length (Weaning), and reproductive lifespan (Repro_lifespan)
+3. From this dataset, plot brain size (ECV) as a function of social group size (Group_size), longevity (Longevity), juvenile period length (Weaning), and reproductive lifespan (Repro_lifespan)
 ```{r}
-p1 <- ggplot(data = d, aes(x = ECV, y = Group_size)) + geom_point()
-p2 <- ggplot(data = d, aes(x = ECV, y = Longevity)) + geom_point()
-p3 <- ggplot(data = d, aes(x = ECV, y = Weaning)) + geom_point()
-p4 <- ggplot(data = d, aes(x = ECV, y = Repro_lifespan)) + geom_point()
+gs_plot <- ggplot(data = d, aes(x = ECV, y = Group_size)) + geom_point()
+long_plot <- ggplot(data = d, aes(x = ECV, y = Longevity)) + geom_point()
+wean_plot <- ggplot(data = d, aes(x = ECV, y = Weaning)) + geom_point()
+repro_plot<- ggplot(data = d, aes(x = ECV, y = Repro_lifespan)) + geom_point()
 
-p1 + p2
+gs_plot + long_plot + wean_plot + repro_plot
 ```
-3. From this dataset, plot brain size (ECV) as a function of social group size (Group_size), longevity (Longevity), juvenile period length (Weaning), and reproductive lifespan (Repro_lifespan) Derive by hand the ordinary least squares regression coefficients β code = $\beta$ and β code = $\beta$for ECV as a function of social group size. 
+4. From this dataset, plot brain size (ECV) as a function of social group size (Group_size), longevity (Longevity), juvenile period length (Weaning), and reproductive lifespan (Repro_lifespan) Derive by hand the ordinary least squares regression coefficients β code = $\beta$ and β code = $\beta$for ECV as a function of social group size. 
 ```{r}
 d_mod <- d %>% filter(!is.na(ECV) & !is.na(Group_size))
 
@@ -38,17 +41,17 @@ beta1
 beta0 <- mean(d_mod$ECV) - beta1 * mean(d_mod$Group_size)
 beta0
 ```
-4. Confirm that you get the same results using the lm() function
+5. Confirm that you get the same results using the lm() function
 ```{r}
-model <- lm(data = d, ECV ~ Group_size)
+model <- lm(data = d_mod, ECV ~ Group_size)
 summary(model)
 
 residuals <- d_mod$ECV - (beta0 + beta1 * d_mod$Group_size)
 
-num <- sum(residuals^2)/ (length(residuals)-2)
-den <- sum(d_mod$Group_size - mean(d_mod$Group_size))^2
+num <- sum(residuals^2)
+den <- sum((d_mod$Group_size - mean(d_mod$Group_size))^2) * (n-2)
 ```
-5. Repeat the analysis above for three different major radiations of primates – “catarrhines”, “platyrrhines”, and “strepsirhines”) separately. These are stored in the variable Taxonomic_group.
+6. Repeat the analysis above for three different major radiations of primates – “catarrhines”, “platyrrhines”, and “strepsirhines”) separately. These are stored in the variable Taxonomic_group.
 Do your regression coefficients differ among groups? How might you determine this?
 ```{r}
 #Catarrhines
@@ -89,15 +92,18 @@ strep_b0
 strep_m <- lm(formula = ECV ~ Group_size, data = strepsirhines)
 summary(strep_m)
 ```
+7. Do your regression coefficients differ among groups? How might you determine this?
+-The regression coefficients differ slightly among groups. You can determine this by comparing the summaries of each group's linear model found with the lm() function.
 
-6. For your first regression of ECV on social group size, calculate the standard error for the slope coefficient, the 95% CI, and the p value associated with this coefficient by hand. Also extract this same information from the results of running the lm() function.
+8. For your first regression of ECV on social group size, calculate the standard error for the slope coefficient, the 95% CI, and the p value associated with this coefficient by hand. Also extract this same information from the results of running the lm() function.
 ```{r}
-#find the standard error
+#Find the standard error of Beta 1
 SE_beta1 <- sqrt(num/den)
 SE_beta1
 
-SE_beta0 <- SE_beta1 * sqrt(sum(d_mod$Group_size)/length(d_mod$Group_size))
-SE_beta0
+#Calculated but not asked for:
+#SE_beta0 <- SE_beta1 * sqrt(sum(d_mod$Group_size)/length(d_mod$Group_size))
+#SE_beta0
 
 #Code from class for t-values
 #t_beta1 <- beta1/SE_beta1
@@ -105,120 +111,123 @@ SE_beta0
 #1 - pt(t_beta1, 149)
 ```
 ```{r}
-model.summary <- tidy(model)
-model.summary
+mod.summary <- tidy(model) #summarize the model information
+mod.summary
 
-#calculate the CI, I did it the long way but a cleaner/shorter way was provided in class: (CI <- confint(model, level = 1 - alpha))
+#Calculate the 95% CI, I did it the long way but a cleaner/shorter way was provided in class: (CI <- confint(model, level = 1 - alpha)) try to use this later to learn how it works
 alpha <- 0.05
-lower <- model.summary$estimate -
-  qt(1 - alpha / 2, df = nrow(d_mod) - 2) * model.summary$std.error
-upper <- model.summary$estimate +
-  qt(1 - alpha / 2, df = nrow(d_mod) - 2) * model.summary$std.error
+lower <- mod.summary$estimate -
+  qt(1 - alpha / 2, df = nrow(d_mod) - 2) * mod.summary$std.error
+upper <- mod.summary$estimate +
+  qt(1 - alpha / 2, df = nrow(d_mod) - 2) * mod.summary$std.error
 CI <- c(lower, upper)
 CI
 ```
 ```{r}
-#calculate the p-value
-model.summary$calc.statistic <- (model.summary$estimate-0)/model.summary$std.error
-model.summary$calc.p.value <- 2 * pt(model.summary$calc.statistic,
+#Calculate the p-value, again the long way. Im sure there is a shorter way
+mod.summary$calc.statistic <- (mod.summary$estimate-0)/mod.summary$std.error
+mod.summary$calc.p.value <- 2 * pt(mod.summary$calc.statistic,
   df=nrow(d_mod)-2, lower.tail = FALSE)
-model.summary
+mod.summary
+
+#model2 <- lm(data = mod.summary, )
+#summary(model2)
 ```
-7. Then, use a permutation approach with 1000 permutations to generate a null sampling distribution for the slope coefficient. What is it that you need to permute? What is the p value associated with your original slope coefficient?
+9. Then, use a permutation approach with 1000 permutations to generate a null sampling distribution for the slope coefficient. What is it that you need to permute? What is the p value associated with your original slope coefficient? You can use either the percentile method (i.e., using quantiles from actual permutation-based null sampling distribution) or a theory-based method (i.e., using the standard deviation of the permutation-based null sampling distribution as the estimate of the standard error), or both, to calculate this p value.
+
 ```{r}
 #define the alpha, CI boundaries, and critical values
-confidence_level <- 1 - alpha
-p_lower <- alpha / 2
-p_upper <- 1 - (alpha / 2)
-degrees_of_freedom <- nrow(d_mod) - 2
-critical_value <- qt(p_upper, df = degrees_of_freedom)
+conf_level <- 1 - alpha
+lower_p <- alpha / 2
+upper_p <- 1 - (alpha / 2)
+d_freedom <- nrow(d_mod) - 2
+crit_value <- qt(upper_p, df = d_freedom)
 ```
 
 ```{r}
 #calculate the original slope 
-original.slope <- lm(data = d_mod, ECV ~ Group_size) %>%
-  tidy(conf.int=TRUE, conf.level=confidence_level) %>%
+o_slope <- lm(data = d_mod, ECV ~ Group_size) %>%
+  tidy(conf.int=TRUE, conf.level=conf_level) %>% #try using the conf.int method from above
   mutate(
-    lower = estimate - std.error * critical_value,
-    upper = estimate + std.error * critical_value
+    lower = estimate - se * crit_value,
+    upper = estimate + se * crit_value
   ) %>%
   filter(term=="Group_size")
-original.slope 
+o_slope 
 ```
-Try to use a loop
+
 ```{r}
 #calculate the permuted slope
 library(mosaic)
-reps = 1000
+reps = 1000 #set the number of reps for permutation
 
-#method from Module 18
-perm.slope <- d_mod %>%
-  specify(ECV ~ Group_size) %>%
-  hypothesize(null = "independence") %>% #set null hypothesis
+#Individual pieces of code for permutation from Module 16
+p <- d_mod %>% specify(formula = ECV ~ Group_size)
+head(p) #specify or select for ECV and Group_size
+
+p1 <- p %>% hypothesize(null = "independence") #get the null hypothesis
+head(p1)
+
+p_permutation <- p1 %>% generate(reps, type = "permute") #generate the 1000 permutations
+
+null_dist <- p_permutation %>% calculate(stat = "slope") #calculate the slope
+
+#Combined individual code from above, call it perm_slope, and PIPE. Totally did not realize this was also code in Module 18 -_- (Will do it another way if not allowed.)
+perm_slope <- d_mod %>%
+  specify(formula = ECV ~ Group_size) %>% 
+  hypothesize(null = "independence") %>%
   generate(reps, type = "permute") %>%
   calculate(stat = "slope")
-head(perm.slope)
+head(perm_slope)
 
-#using do reps
-perm.slope <- do(reps) * sample_n(specify(d_mod, ECV ~ Group_size),                                size = nrow(d_mod), 
-                         replace = FALSE) %>%
-                         specify(ECV ~ Group_size) %>%
-                         hypothesize(null = "independence") %>% #set null hypothesis, 
-                         generate(type = "permute") %>%
-                         calculate(stat = "slope")
-head(perm.slope)
+#Can also use do reps and for loop maybe?? Will figure out 
 
-#using a for loop
-for (i in 1:reps){
-  ps <- sample_n(d_mod, size = nrow(d), replace = TRUE)
-              specify(ECV ~ Group_size) %>%
-              hypothesize(null = "independence") %>% #set null hypothesis,
-              generate(type = "permute") %>%
-              calculate(stat = "slope")
-}
-head(perm.slope)
-
-perm.slope.summary <- perm.slope %>%
+#Is this what you meant by the theory-based method??
+perm_slope_summary <- perm_slope %>%
   summarize(
     estimate = mean(stat),
-    std.error = sd(stat),
-    lower = estimate - std.error * critical_value,
-    upper = estimate + std.error * critical_value,
-    perm.lower = quantile(stat, p_lower),
-    perm.upper = quantile(stat, p_upper)
+    se = sd(stat),
+    lower = estimate - se * crit_value,
+    upper = estimate + se * crit_value,
   )
-perm.slope.summary
+perm_slope_summary
 ```
 ```{r}
-p.value <- perm.slope %>% 
-  mutate(abs_stat=abs(stat)) %>%
-  summarize(
-    estimate = mean(abs_stat >= abs(pull(original.slope, estimate)))
-  )
-p.value
+#I tried to use the get_p_value() function, I think I did this correctly???
+p_value <- perm_slope %>%
+  get_p_value(obs_stat = o_slope$estimate, direction="two_sided")
+p_value
 ```
 Bootstrapping
 
-Use bootstrapping to generate a 95% CI for your estimate of the slope coefficient using both the percentile method and the theory-based method (i.e., based on the standard deviation of the bootstrapped sampling distribution). What is the p value associated with your observed slope coefficient based on each of these methods?
+10. Use bootstrapping to generate a 95% CI for your estimate of the slope coefficient using both the percentile method and the theory-based method (i.e., based on the standard deviation of the bootstrapped sampling distribution). What is the p value associated with your observed slope coefficient based on each of these methods?
 ```{r}
-boot.slope <- d_mod %>%
-  specify(ECV ~ Group_size) %>%
+#Try using the same method used for the permutation above from Module 16.
+b_slope <- d_mod %>%
+  specify(formula = ECV ~ Group_size) %>%
   generate(reps, type = "bootstrap") %>% 
   calculate(stat = "slope") 
-  head(boot.slope)
+head(b_slope)
 
-boot.slope.summary <- boot.slope %>%
+#Calculate the CI using the percentile method
+b_CI1 <- b_slope %>%
   summarize(
-    estimate = mean(stat),
-    std.error = sd(stat),
-    lower = estimate - std.error * critical_value,
-    upper = estimate + std.error * critical_value,
-    boot.lower = quantile(stat, p_lower),
-    boot.upper = quantile(stat, p_upper)
+    lower_b = quantile(stat, lower_p),
+    upper_b = quantile(stat, upper_p)
   )
 
-boot.slope.summary
+b_CI1
 
-hist(boot.slope$stat, main="Histogram of Bootstrapped\nSlope Values",
-  xlab = "Slope Coefficient")
+#Calculate the CI using theory-based method
+b_CI2 <- b_slope %>%
+  summarize(
+    estimate = mean(stat),
+    se = sd(stat),
+    lower = estimate - se * crit_value,
+    upper = estimate + se * crit_value,
+  )
+b_CI2
 ```
+
+11. Do these CIs suggest that your slope coefficient is different from zero?
+-Yes
