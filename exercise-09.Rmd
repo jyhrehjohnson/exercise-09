@@ -41,6 +41,7 @@ beta1
 beta0 <- mean(d_mod$ECV) - beta1 * mean(d_mod$Group_size)
 beta0
 ```
+
 5. Confirm that you get the same results using the lm() function
 ```{r}
 model <- lm(data = d_mod, ECV ~ Group_size)
